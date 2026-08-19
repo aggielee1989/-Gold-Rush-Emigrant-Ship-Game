@@ -130,10 +130,52 @@
         /* AD POSITION MARKERS */
         /* TOP AD POSITION */
         /* BOTTOM AD POSITION */
+        /*广告设备适配*/
+.ad-desktop {
+    display: block;
+}
+.ad-mobile {
+    display: none;
+}
+@media (max-width: 768px) {
+    .ad-desktop {
+        display: none !important;
+    }
+    .ad-mobile {
+        display: block !important;
+    }
+}
     </style>
 </head>
 <body>
 <!-- TOP AD POSITION -->
+    <!-- TOP AD POSITION -->
+<div class="ad-desktop">
+<script>
+  atOptions = {
+    'key' : '8adb134d880141fa6d79f86fdd6c3439',
+    'format' : 'iframe',
+    'height' : 90,
+    'width' : 728,
+    'params' : {}
+  };
+</script>
+<script src="https://www.highperformanceformat.com/8adb134d880141fa6d79f86fdd6c3439/invoke.js"></script>
+</div>
+
+<div class="ad-mobile">
+<script>
+  atOptions = {
+    'key' : 'a37f9a1d6956db062318b6051289aa6d',
+    'format' : 'iframe',
+    'height' : 50,
+    'width' : 320,
+    'params' : {}
+  };
+</script>
+<script src="https://www.highperformanceformat.com/a37f9a1d6956db062318b6051289aa6d/invoke.js"></script>
+</div>
+<!-- New top header section -->
 <!-- New top header section -->
 <div class="page-header">
     <h1 class="game-title">Gold Rush Emigrant Ship</h1>
