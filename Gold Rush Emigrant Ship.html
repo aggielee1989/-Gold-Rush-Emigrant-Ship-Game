@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Miner Colony - Idle Clicker</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        body {
+            background-color: #222831;
+            color: #eeeeee;
+            padding: 10px;
+        }
+        /* Top header styles newly added */
+        .page-header{
+            max-width:1400px;
+            margin:0 auto 14px auto;
+        }
+        .game-title{
+            font-size:36px;
+            font-weight:bold;
+            text-align:center;
+            color:#ffd369;
+            text-shadow: 2px 2px 2px #111111;
+            margin-bottom:10px;
+        }
+        .instructions-wrap{
+            background:#393e46;
+            border-radius:8px;
+            padding:12px;
+        }
+        .instructions-content{
+            margin-top:10px;
+            line-height:1.6;
+            display:none;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 280px 1fr 280px;
+            gap:12px;
+            max-width: 1400px;
+            margin:0 auto;
+        }
+        @media (max-width:992px){
+            .container{
+                grid-template-columns:1fr;
+            }
+            .game-title{
+                font-size:26px;
+            }
+        }
+        .panel{
+            background:#393e46;
+            border-radius:8px;
+            padding:12px;
+            overflow:auto;
+        }
+        h3{
+            margin-bottom:8px;
+            color:#ffd369;
+            border-bottom:1px solid #555;
+            padding-bottom:4px;
+        }
+        .middle-column{
+            display:flex;
+            flex-direction:column;
+            gap:8px;
+        }
+        .ship-ui{
+            background:#30475e;
+            padding:10px;
+            border-radius:8px;
+        }
+        canvas{
+            width:100%;
+            background:#2c3639;
+            border-radius:8px;
+        }
+        .shop-item{
+            background:#444b55;
+            padding:10px;
+            margin-bottom:8px;
+            border-radius:6px;
+        }
+        button{
+            padding:8px 12px;
+            border:none;
+            border-radius:4px;
+            cursor:pointer;
+            font-weight:bold;
+        }
+        button:disabled{
+            background:#666;
+            color:#aaa;
+            cursor:not-allowed;
+        }
+        .btn-green{background:#2ecc71;color:#000;}
+        .btn-yellow{background:#f1c40f;color:#000;}
+        .btn-red{background:#e74c3c;color:#fff;}
+        .toast{
+            position:fixed;
+            top:20px;
+            left:50%;
+            transform:translateX(-50%);
+            background:rgba(0,0,0,0.85);
+            color:#ffd369;
+            padding:12px 20px;
+            border-radius:6px;
+            z-index:100;
+            opacity:0;
+            transition:opacity 0.3s;
+            pointer-events:none;
+        }
+        .achievement-item,.stat-item{
+            font-size:14px;
+            padding:4px 0;
+        }
+        .passenger-line{
+            font-size:13px;
+            padding:2px 0;
+        }
+        .locked{color:#888;}
+        .ready{color:#f1c40f;}
+        .onboard{color:#2ecc71;}
+        /* AD POSITION MARKERS */
+        /* TOP AD POSITION */
+        /* BOTTOM AD POSITION */
+    </style>
+</head>
+<body>
+<!-- TOP AD POSITION -->
+<!-- New top header section -->
+<div class="page-header">
+    <h1 class="game-title">Gold Rush Emigrant Ship</h1>
+    <div class="instructions-wrap">
+        <button id="toggleInstructionsBtn" class="btn-yellow">Show Game Instructions</button>
+        <div id="instructionsContent" class="instructions-content">
+Mine gold by clicking ore, hire miners for automatic gold income.<br>
+Earn enough gold and reach required level to send immigrants onto the ship.<br>
+Your goal: board all 10 passengers onto the ship.<br>
+Game progress saves automatically in your browser.
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="container">
+    <!-- LEFT PANEL Achievements + Statistics -->
+    <div class="panel left-column">
+        <div>
+            <h3>Achievements</h3>
+            <div id="achievementsList"></div>
+        </div>
+        <div style="margin-top:16px;">
+            <h3>Statistics</h3>
+            <div id="statsList"></div>
+        </div>
+    </div>
+    <!-- MIDDLE COLUMN Ship UI + Canvas Game Area -->
+    <div class="middle-column">
+        <div class="ship-ui">
+            <div><strong>Ship Passengers: <span id="shipCount">0</span> / 10</strong></div>
+            <div style="margin-top:6px;">Next passenger: <span id="nextPassenger">-</span></div>
+            <div>Cost: <span id="nextCost">0</span> coins</div>
+            <div style="margin-top:8px">
+                <button id="sendPassengerBtn" class="btn-yellow"></button>
+            </div>
+            <div id="passengerStatusList" style="margin-top:8px;max-height:80px;overflow:auto;"></div>
+        </div>
+        <canvas id="gameCanvas" height="420"></canvas>
+    </div>
+    <!-- RIGHT SHOP PANEL -->
+    <div class="panel">
+        <h3>Shop</h3>
+        <div class="shop-item">
+            <div>Miner Workers: <span id="minerCount">0</span></div>
+            <div>Auto income: <span id="autoIncome">0</span> coins/s</div>
+            <div style="margin:6px 0;">Cost: <span id="minerCost">10</span> coins</div>
+            <button id="buyMinerBtn" class="btn-green">Buy Miner</button>
+        </div>
+        <div class="shop-item">
+            <h4>Double Income Buff</h4>
+            <div>2x auto income for offline & online</div>
+            <button id="activateBuffBtn" class="btn-yellow" style="margin-top:6px;">Activate Buff</button>
+            /* REWARD AD TRIGGER */
+        </div>
+    </div>
+</div>
+<!-- BOTTOM AD POSITION -->
+<script>
+// Game constants
+const LEVEL_THRESHOLDS = [
+    0,
+    10000,      // Lv0->Lv1
+    100000,     // Lv1->Lv2
+    1000000,    // Lv2->Lv3
+    10000000,   // Lv3->Lv4
+    100000000   // Lv4->Lv5
+];
+const PASSENGERS = [
+    {name:"Amelia",level:1,cost:50000},
+    {name:"Liam",level:2,cost:200000},
+    {name:"Olivia",level:2,cost:500000},
+    {name:"Noah",level:3,cost:1500000},
+    {name:"Emma",level:3,cost:4000000},
+    {name:"William",level:3,cost:10000000},
+    {name:"Sophia",level:4,cost:25000000},
+    {name:"James",level:4,cost:60000000},
+    {name:"Isabella",level:5,cost:150000000},
+    {name:"Ethan",level:5,cost:400000000}
+];
+// Game State
+let gameState = {
+    coins:0,
+    totalCoinsEarned:0,
+    miners:0,
+    level:0,
+    buffActive:false,
+    buffEndTime:0,
+    lastSaveTime:Date.now(),
+    totalClicks:0,
+    passengers: PASSENGERS.map(p=> ({name:p.name, status:"locked"})), // locked | ready | onboard
+    achievements:{
+        firstMiner:false,
+        levelUp1:false,
+        firstPassenger:false,
+        allPassengers:false
+    }
+};
+// Canvas setup
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+let floatTexts = [];
+let passengerAnimQueue = [];
+let shipRockAngle = 0;
+let minerAnimTick = 0;
+// Canvas scene partition constants
+const MINE_ZONE_TOP = 240;
+const DOCK_PLATFORM_Y = 220;
+// DOM references
+const toastEl = document.getElementById("toast");
+const minerCountEl = document.getElementById("minerCount");
+const autoIncomeEl = document.getElementById("autoIncome");
+const minerCostEl = document.getElementById("minerCost");
+const buyMinerBtn = document.getElementById("buyMinerBtn");
+const activateBuffBtn = document.getElementById("activateBuffBtn");
+const shipCountEl = document.getElementById("shipCount");
+const nextPassengerEl = document.getElementById("nextPassenger");
+const nextCostEl = document.getElementById("nextCost");
+const sendPassengerBtn = document.getElementById("sendPassengerBtn");
+const passengerStatusListEl = document.getElementById("passengerStatusList");
+const achievementsListEl = document.getElementById("achievementsList");
+const statsListEl = document.getElementById("statsList");
+// New instruction toggle dom
+const toggleInstructionsBtn = document.getElementById("toggleInstructionsBtn");
+const instructionsContent = document.getElementById("instructionsContent");
+let instructionsOpen = false;
+toggleInstructionsBtn.onclick = function(){
+    instructionsOpen = !instructionsOpen;
+    if(instructionsOpen){
+        instructionsContent.style.display = "block";
+        toggleInstructionsBtn.textContent = "Hide Game Instructions";
+    }else{
+        instructionsContent.style.display = "none";
+        toggleInstructionsBtn.textContent = "Show Game Instructions";
+    }
+};
+
+// Resize canvas
+function resizeCanvas(){
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = 420;
+}
+resizeCanvas();
+window.addEventListener("resize",resizeCanvas);
+// Save / Load localStorage
+function saveGame(){
+    gameState.lastSaveTime = Date.now();
+    localStorage.setItem("minerColonySave", JSON.stringify(gameState));
+}
+function loadGame(){
+    const raw = localStorage.getItem("minerColonySave");
+    if(raw){
+        const loaded = JSON.parse(raw);
+        gameState = {...gameState, ...loaded};
+        // compute offline earnings
+        const now = Date.now();
+        const deltaSec = Math.max(0,(now - gameState.lastSaveTime)/1000);
+        const incomePerSec = getIncomePerSecond();
+        const offlineGain = incomePerSec * deltaSec;
+        addCoins(offlineGain, false);
+        showToast(`Offline gain: ${formatNumber(offlineGain)} coins`);
+    }
+}
+// Level calculation
+function recalcLevel(){
+    let lvl = 0;
+    for(let i=0;i<LEVEL_THRESHOLDS.length;i++){
+        if(gameState.totalCoinsEarned >= LEVEL_THRESHOLDS[i]){
+            lvl = i;
+        }
+    }
+    const old = gameState.level;
+    gameState.level = lvl;
+    if(old !== gameState.level){
+        showToast(`LEVEL UP! Now Level ${gameState.level}`);
+        checkAchievements();
+        // MILESTONE INTERSTITIAL AD
+    }
+}
+function getIncomePerSecond(){
+    let base = gameState.miners * 2.0;
+    if(gameState.buffActive && Date.now() < gameState.buffEndTime){
+        base *=2;
+    }else{
+        gameState.buffActive = false;
+    }
+    return base;
+}
+function minerBuyCost(){
+    return Math.floor(10 * Math.pow(1.12, gameState.miners));
+}
+function formatNumber(n){
+    if(n >= 1e9) return (n/1e9).toFixed(2)+"B";
+    if(n >=1e6) return (n/1e6).toFixed(2)+"M";
+    if(n>=1e3) return (n/1e3).toFixed(2)+"K";
+    return Math.floor(n).toString();
+}
+function addCoins(amount, showFloat=true){
+    gameState.coins += amount;
+    gameState.totalCoinsEarned += amount;
+    recalcLevel();
+    if(showFloat && amount>0){
+        floatTexts.push({
+            x: canvas.width/2 + (Math.random()-0.5)*120,
+            y: canvas.height*0.45,
+            text:"+"+formatNumber(amount),
+            life:120,
+            vy:-1.2,
+            color:"gold"
+        });
+    }
+}
+function subtractCoinsFloat(amount){
+    floatTexts.push({
+        x: canvas.width*0.65,
+        y:DOCK_PLATFORM_Y+20,
+        text:"-"+formatNumber(amount),
+        life:120,
+        vy:-1.2,
+        color:"red"
+    });
+}
+// Toast
+function showToast(text){
+    toastEl.textContent = text;
+    toastEl.style.opacity = "1";
+    setTimeout(()=>{toastEl.style.opacity="0";},2200);
+}
+// Achievements check
+function checkAchievements(){
+    if(gameState.miners >=1 && !gameState.achievements.firstMiner){
+        gameState.achievements.firstMiner = true;
+        showToast("Achievement Unlocked: First Miner!");
+    }
+    if(gameState.level >=1 && !gameState.achievements.levelUp1){
+        gameState.achievements.levelUp1 = true;
+        showToast("Achievement Unlocked: Reached Level 1");
+    }
+    const onboardCount = gameState.passengers.filter(p=>p.status==="onboard").length;
+    if(onboardCount >=1 && !gameState.achievements.firstPassenger){
+        gameState.achievements.firstPassenger = true;
+        showToast("Achievement Unlocked: First Passenger Onboard");
+    }
+    if(onboardCount >=10 && !gameState.achievements.allPassengers){
+        gameState.achievements.allPassengers = true;
+        showToast("The ship is full! All passengers are ready to depart! You have completed the game!");
+    }
+}
+function renderAchievements(){
+    const ach = gameState.achievements;
+    achievementsListEl.innerHTML = "";
+    const list = [
+        {key:"firstMiner",text:"Hire your first Miner"},
+        {key:"levelUp1",text:"Reach Level 1"},
+        {key:"firstPassenger",text:"Send first passenger to ship"},
+        {key:"allPassengers",text:"Fill all 10 ship seats"}
+    ];
+    list.forEach(item=>{
+        const div = document.createElement("div");
+        div.className = "achievement-item";
+        div.textContent = (ach[item.key] ? "✅ ":"🔒 ") + item.text;
+        achievementsListEl.appendChild(div);
+    });
+}
+function renderStats(){
+    statsListEl.innerHTML = "";
+    const items = [
+        `Level: ${gameState.level}`,
+        `Total coins earned: ${formatNumber(gameState.totalCoinsEarned)}`,
+        `Miners owned: ${gameState.miners}`,
+        `Total clicks: ${gameState.totalClicks}`
+    ];
+    items.forEach(s=>{
+        const div = document.createElement("div");
+        div.className = "stat-item";
+        div.textContent = s;
+        statsListEl.appendChild(div);
+    });
+}
+// Passenger logic
+function getNextPassengerIndex(){
+    for(let i=0;i<PASSENGERS.length;i++){
+        const st = gameState.passengers[i].status;
+        if(st !== "onboard") return i;
+    }
+    return -1;
+}
+function refreshPassengerUI(){
+    const idx = getNextPassengerIndex();
+    const onboardCount = gameState.passengers.filter(p=>p.status==="onboard").length;
+    shipCountEl.textContent = onboardCount;
+    passengerStatusListEl.innerHTML = "";
+    PASSENGERS.forEach((p,i)=>{
+        const ps = gameState.passengers[i];
+        const div = document.createElement("div");
+        div.className = "passenger-line";
+        if(ps.status === "locked"){
+            div.className += " locked";
+            div.textContent = `🔒 ${p.name} (Lv${p.level})`;
+        }else if(ps.status === "ready"){
+            div.className += " ready";
+            div.textContent = `⏳ ${p.name} ready`;
+        }else if(ps.status === "onboard"){
+            div.className += " onboard";
+            div.textContent = `🚢 ${p.name} On Board`;
+        }
+        passengerStatusListEl.appendChild(div);
+    });
+    if(idx === -1){
+        nextPassengerEl.textContent = "None (Full)";
+        nextCostEl.textContent = "0";
+        sendPassengerBtn.style.display = "none";
+        return;
+    }
+    sendPassengerBtn.style.display = "block";
+    const targetPass = PASSENGERS[idx];
+    const statePass = gameState.passengers[idx];
+    nextPassengerEl.textContent = targetPass.name;
+    nextCostEl.textContent = formatNumber(targetPass.cost);
+    // update status from locked to ready if level meets
+    if(statePass.status === "locked" && gameState.level >= targetPass.level){
+        gameState.passengers[idx].status = "ready";
+    }
+    const ps = gameState.passengers[idx];
+    if(ps.status === "locked"){
+        sendPassengerBtn.textContent = "Locked";
+        sendPassengerBtn.disabled = true;
+    }else{
+        if(gameState.coins >= targetPass.cost){
+            sendPassengerBtn.textContent = `Send ${targetPass.name} to Ship`;
+            sendPassengerBtn.disabled = false;
+        }else{
+            sendPassengerBtn.textContent = "Not Enough Coins";
+            sendPassengerBtn.disabled = true;
+        }
+    }
+}
+sendPassengerBtn.onclick = function(){
+    const idx = getNextPassengerIndex();
+    if(idx <0) return;
+    const pDef = PASSENGERS[idx];
+    const pState = gameState.passengers[idx];
+    if(pState.status !== "ready") return;
+    if(gameState.coins < pDef.cost) return;
+    gameState.coins -= pDef.cost;
+    subtractCoinsFloat(pDef.cost);
+    // trigger animation dock area only
+    passengerAnimQueue.push({index:idx, progress:0});
+};
+// Shop button
+buyMinerBtn.onclick = function(){
+    const cost = minerBuyCost();
+    if(gameState.coins >= cost){
+        gameState.coins -= cost;
+        gameState.miners +=1;
+        showToast("New miner hired!");
+        checkAchievements();
+    }
+};
+activateBuffBtn.onclick = function(){
+    /* REWARD AD TRIGGER */
+    gameState.buffActive = true;
+    gameState.buffEndTime = Date.now() + 30000;
+    showToast("Double income buff active for 30 seconds!");
+};
+// Canvas click mine gold ore
+canvas.onclick = function(e){
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    gameState.totalClicks +=1;
+    const clickGain = 5;
+    addCoins(clickGain);
+};
+function updateUI(){
+    minerCountEl.textContent = gameState.miners;
+    autoIncomeEl.textContent = formatNumber(getIncomePerSecond());
+    minerCostEl.textContent = formatNumber(minerBuyCost());
+    buyMinerBtn.disabled = gameState.coins < minerBuyCost();
+    renderAchievements();
+    renderStats();
+    refreshPassengerUI();
+}
+// draw stickman with miner arm swing animation
+function drawStickman(x,y,color,alpha=1,armSwing=0){
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle=color;
+    ctx.fillStyle=color;
+    ctx.lineWidth=2;
+    // head
+    ctx.beginPath();
+    ctx.arc(x,y-14,9,0,Math.PI*2);
+    ctx.stroke();
+    // body
+    ctx.beginPath();
+    ctx.moveTo(x,y-5);
+    ctx.lineTo(x,y+12);
+    ctx.stroke();
+    // arms swing
+    ctx.beginPath();
+    ctx.moveTo(x,y);
+    ctx.lineTo(x-8+armSwing,y+7);
+    ctx.moveTo(x,y);
+    ctx.lineTo(x+8-armSwing,y+7);
+    ctx.stroke();
+    // legs
+    ctx.beginPath();
+    ctx.moveTo(x,y+12);
+    ctx.lineTo(x-7,y+24);
+    ctx.moveTo(x,y+12);
+    ctx.lineTo(x+7,y+24);
+    ctx.stroke();
+    ctx.restore();
+}
+// Canvas render
+function render(){
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.clearRect(0,0,W,H);
+    minerAnimTick += 0.08;
+    const swingOffset = Math.sin(minerAnimTick)*6;
+
+    // Mining zone ground bottom half
+    ctx.fillStyle="#4a5558";
+    ctx.fillRect(0,MINE_ZONE_TOP,W,H-MINE_ZONE_TOP);
+
+    // Visual divider platform for dock area
+    ctx.strokeStyle="#708085";
+    ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.moveTo(W*0.50,DOCK_PLATFORM_Y);
+    ctx.lineTo(W,DOCK_PLATFORM_Y);
+    ctx.stroke();
+    ctx.fillStyle="#546469";
+    ctx.fillRect(W*0.50,DOCK_PLATFORM_Y-4,W*0.50,8);
+
+    // draw ship top‑right dock zone
+    shipRockAngle +=0.012;
+    const rockOffset = Math.sin(shipRockAngle)*2;
+    ctx.save();
+    ctx.translate(W*0.72, DOCK_PLATFORM_Y -20 + rockOffset);
+    // hull
+    ctx.fillStyle="#6b4423";
+    ctx.beginPath();
+    ctx.moveTo(-120,0);
+    ctx.lineTo(140,0);
+    ctx.lineTo(110,-65);
+    ctx.lineTo(-90,-65);
+    ctx.closePath();
+    ctx.fill();
+    // deck
+    ctx.fillStyle="#8d6e4c";
+    ctx.fillRect(-95,-68,200,8);
+    // mast simple decoration
+    ctx.fillStyle="#5a3818";
+    ctx.fillRect(10,-130,6,70);
+    ctx.beginPath();
+    ctx.moveTo(13,-130);
+    ctx.lineTo(60,-110);
+    ctx.strokeStyle="#442b11";
+    ctx.lineWidth=2;
+    ctx.stroke();
+    ctx.restore();
+
+    // draw gold ores ONLY inside mining zone
+    const oreCount = Math.min(14, Math.floor(1 + gameState.miners * 0.45));
+    for(let o=0;o<oreCount;o++){
+        const ox = 40 + ((o*67) % (W*0.48));
+        const oy = MINE_ZONE_TOP + 20 + ((o*31)%(H-MINE_ZONE_TOP-60));
+        ctx.fillStyle="#b8860b";
+        ctx.beginPath();
+        ctx.arc(ox,oy,22,0,Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle="#ffd700";
+        ctx.beginPath();
+        ctx.arc(ox-6,oy-6,8,0,Math.PI*2);
+        ctx.fill();
+    }
+
+    // draw miners ONLY mining zone with arm swing
+    for(let m=0;m<gameState.miners;m++){
+        const mx = 30 + (m*42) % (W*0.45);
+        const my = MINE_ZONE_TOP + 30 + ((m*23)%(H-MINE_ZONE_TOP-70));
+        drawStickman(mx,my,"#42a5f5",1,swingOffset);
+    }
+
+    // passenger queue dock area top‑right above divider
+    const queueStartX = W*0.52;
+    const queueBaseY = DOCK_PLATFORM_Y - 15;
+    let qi=0;
+    PASSENGERS.forEach((p,i)=>{
+        const ps = gameState.passengers[i];
+        if(ps.status !== "onboard"){
+            let anim = passengerAnimQueue.find(a=>a.index===i);
+            if(anim){
+                // animate entirely within dock area
+                const startX = queueStartX - (qi*28);
+                const endX = W*0.72 - 60;
+                const px = startX + anim.progress*(endX-startX);
+                const py = queueBaseY;
+                drawStickman(px,py,"#ff8888",1,0);
+            }else{
+                let alphaVal = ps.status === "locked" ? 0.4 : 1.0;
+                let drawColor = ps.status === "locked" ? "#888888" : "#ff8888";
+                drawStickman(queueStartX - qi*28, queueBaseY, drawColor, alphaVal,0);
+                qi++;
+            }
+        }
+    });
+
+    // draw onboard passengers stay on ship deck
+    let onboardIndex =0;
+    PASSENGERS.forEach((p,i)=>{
+        const ps = gameState.passengers[i];
+        if(ps.status === "onboard"){
+            const sx = W*0.72 -70 + (onboardIndex %5)*32;
+            const sy = DOCK_PLATFORM_Y -90 - Math.floor(onboardIndex/5)*32;
+            drawStickman(sx,sy,"#77dd77",1,0);
+            onboardIndex++;
+        }
+    });
+
+    // update passenger animations
+    for(let aIdx=passengerAnimQueue.length-1;aIdx>=0;aIdx--){
+        const anim = passengerAnimQueue[aIdx];
+        anim.progress += 0.025;
+        if(anim.progress >=1.0){
+            gameState.passengers[anim.index].status = "onboard";
+            passengerAnimQueue.splice(aIdx,1);
+            checkAchievements();
+        }
+    }
+
+    // Center big coin number keep original position
+    ctx.fillStyle="#ffd700";
+    ctx.font="bold 34px Arial";
+    ctx.textAlign="center";
+    ctx.fillText(formatNumber(gameState.coins), W/2, H*0.32);
+
+    // floating pop numbers color distinguish gold / red
+    for(let i=floatTexts.length-1;i>=0;i--){
+        const ft = floatTexts[i];
+        ft.y += ft.vy;
+        ft.life -=1;
+        if(ft.color === "red"){
+            ctx.fillStyle=`rgba(255,60,60,${ft.life/120})`;
+        }else{
+            ctx.fillStyle=`rgba(255,215,0,${ft.life/120})`;
+        }
+        ctx.font="bold 18px Arial";
+        ctx.textAlign="center";
+        ctx.fillText(ft.text, ft.x, ft.y);
+        if(ft.life <=0){
+            floatTexts.splice(i,1);
+        }
+    }
+    requestAnimationFrame(render);
+}
+
+// game loop auto income
+let lastTick = Date.now();
+function gameLoop(){
+    const now = Date.now();
+    const delta = (now - lastTick)/1000.0;
+    lastTick = now;
+    const inc = getIncomePerSecond() * delta;
+    if(inc>0){
+        addCoins(inc,false);
+    }
+    updateUI();
+    saveGame();
+    setTimeout(gameLoop, 1000);
+}
+// init
+loadGame();
+updateUI();
+render();
+gameLoop();
+</script>
+</body>
+</html>
